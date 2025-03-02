@@ -44,6 +44,22 @@
 
 (keymap-global-set "C-c w v" 'customize-variable)
 
+;; Create a keymap for find-related commands
+(define-prefix-command 'my-find-map)
+
+;; Bind it to a prefix key
+(global-set-key (kbd "C-c f") my-find-map)
+
+;; Define just the configuration file binding
+(define-key my-find-map (kbd "c") 
+  (lambda () (interactive) (find-file "~/.config/emacs/init.el")))
+
+;; Add which-key support for these bindings
+(with-eval-after-load 'which-key
+  (which-key-add-key-based-replacements
+    "C-c f" "Find"
+    "C-c f c" "Edit emacs config"))
+
 ;; Set package archives
 
 (use-package package
@@ -92,11 +108,101 @@
    ("mpg321" "ogg123" "mplayer" "mpv" "vlc")
    "git"))
 
+;;; God Mode begins
+;; First, ensure god-mode is installed
+(use-package god-mode
+  :ensure t
+  :custom
+  (god-exempt-major-modes nil)
+  (god-exempt-predicates nil)
+  :config
+  ;; Enable god-mode using escape
+  (global-set-key (kbd "<escape>") #'god-local-mode)
+  
+  ;; Change cursor color when god-mode is active
+  (defun my-god-mode-update-cursor-type ()
+    (setq cursor-type (if (or god-local-mode buffer-read-only) 'box 'bar)))
+  
+  (defun my-god-mode-update-cursor-color ()
+    (set-cursor-color (if god-local-mode "#FFD700" "#ffffff")))  ; Gold color in god-mode
+  
+  (add-hook 'god-mode-enabled-hook #'my-god-mode-update-cursor-type)
+  (add-hook 'god-mode-disabled-hook #'my-god-mode-update-cursor-type)
+  (add-hook 'god-mode-enabled-hook #'my-god-mode-update-cursor-color)
+  (add-hook 'god-mode-disabled-hook #'my-god-mode-update-cursor-color)
+
+;; Exclude EMMS and Dired modes from God Mode
+  (add-to-list 'god-exempt-major-modes 'dired-mode)
+  (add-to-list 'god-exempt-major-modes 'emms-playlist-mode)
+  (add-to-list 'god-exempt-major-modes 'emms-browser-mode)
+  (add-to-list 'god-exempt-major-modes 'emms-metaplaylist-mode)
+  (add-to-list 'god-exempt-major-modes 'emms-stream-mode)
+
+  ;; Integration with which-key
+  (defun my-god-mode-which-key-update ()
+    (which-key-add-key-based-replacements
+      "g" "god-mode"
+      "i" "insert-mode"))
+  
+  (add-hook 'god-mode-enabled-hook #'my-god-mode-which-key-update)
+
+  ;; Additional key bindings for god-mode
+  (define-key god-local-mode-map (kbd ".") #'repeat)
+  (define-key god-local-mode-map (kbd "i") #'god-local-mode)
+  
+  ;; Better handling of C-c sequences in god-mode
+  (defun my-god-mode-lookup-command-advice (lookup-fn key)
+    "Translate any C-c sequence to its god-mode equivalent."
+    (let ((command (funcall lookup-fn key)))
+      (if (and (symbolp command)
+               (string-prefix-p "C-c" (key-description key)))
+          (let* ((key-seq (key-description key))
+                 (translated-seq (replace-regexp-in-string "C-c" "c" key-seq t))
+                 (translated-key (kbd translated-seq)))
+            (or (lookup-key god-local-mode-map translated-key)
+                command))
+        command)))
+  
+  (advice-add 'god-mode-lookup-command :around #'my-god-mode-lookup-command-advice)
+
+  ;; Enable god-mode for all buffers
+  (god-mode-all))
+;;; End God Mode
+
 ;;; LOOK AND FEEL
 
-(tool-bar-mode -1)
-(menu-bar-mode -1)
-(scroll-bar-mode -1)
+(use-package emacs
+  :custom
+  (menu-bar-mode nil)         ;; Disable the menu bar
+  (scroll-bar-mode nil)       ;; Disable the scroll bar
+  (tool-bar-mode nil)         ;; Disable the tool bar
+  (inhibit-startup-screen t)  ;; Disable welcome screen
+
+  (delete-selection-mode t)   ;; Select text and delete it by typing.
+  (electric-indent-mode nil)  ;; Turn off the weird indenting that Emacs does by default.
+  (electric-pair-mode t)      ;; Turns on automatic parens pairing
+
+  (blink-cursor-mode nil)     ;; Don't blink cursor
+  (global-auto-revert-mode t) ;; Automatically reload file and show changes if the file has changed
+
+  (dired-kill-when-opening-new-dired-buffer t) ;; Dired don't create new buffer
+  ;;(recentf-mode t) ;; Enable recent file mode
+
+  ;;(global-visual-line-mode t)           ;; Enable truncated lines
+  ;;(display-line-numbers-type 'relative) ;; Relative line numbers
+  (global-display-line-numbers-mode t)  ;; Display line numbers
+
+  (mouse-wheel-progressive-speed nil) ;; Disable progressive speed when scrolling
+  (scroll-conservatively 10) ;; Smooth scrolling
+  ;;(scroll-margin 8)
+
+  (tab-width 4)
+
+  (make-backup-files nil) ;; Stop creating ~ backup files
+  (auto-save-default nil) ;; Stop creating # auto save files
+  :hook
+  (prog-mode . (lambda () (hs-minor-mode t))) ;; Enable folding hide/show globally
+  )
 
 ;; Short answers only please
 
@@ -104,14 +210,16 @@
 
 ;; Spacious padding
 
-(use-package spacious-padding
-  :custom
-  (line-spacing 3)
-  (spacious-padding-mode 1))
+;; (use-package spacious-padding
+;;   :custom
+;;   (line-spacing 3)
+;;   (spacious-padding-mode 1))
 
 ;; Modus and EF Themes
-
 (use-package modus-themes
+  :init
+  ;; Load modus-vivendi-tinted immediately before other configurations
+  (load-theme 'modus-vivendi-tinted t)
   :custom
   (modus-themes-italic-constructs t)
   (modus-themes-bold-constructs t)
@@ -174,18 +282,59 @@
   (marginalia-mode))
 
 ;; Improve keyboard shortcut discoverability
-
 (use-package which-key
+  :ensure nil ; built into Emacs 30
+  :hook (after-init . which-key-mode)
   :config
-  (which-key-mode)
-  :custom
-  (which-key-max-description-length 40)
-  (which-key-lighter nil)
-  (which-key-sort-order 'which-key-description-order))
-
-(when (display-graphic-p)
-  (context-menu-mode))
-
+  (setq which-key-separator "  ")
+  (setq which-key-prefix-prefix "... ")
+  (setq which-key-max-display-columns 3)
+  (setq which-key-idle-delay 1.5)
+  (setq which-key-idle-secondary-delay 0.25)
+  (setq which-key-add-column-padding 1)
+  (setq which-key-max-description-length 40)
+  
+  ;; Try these alternative settings
+  (setq which-key-popup-type 'minibuffer)  ;; Use minibuffer instead of side-window
+  (setq which-key-min-display-lines 6)     ;; Ensure enough lines are displayed
+  
+  ;; Add nested menu descriptions for Writing Studio commands
+  (which-key-add-key-based-replacements
+    "C-c w" "Writing"
+    
+    ;; Second level menus
+    "C-c w b" "Bibliography"
+    "C-c w d" "Denote"
+    "C-c w m" "Media"
+    "C-c w s" "Spelling/Style"
+    "C-c w t" "Toggle"
+    "C-c w x" "Explore"
+    
+    ;; Third level menus (examples)
+    "C-c w b c" "Create note"
+    "C-c w b n" "Open note"
+    "C-c w b o" "Open reference"
+    
+    "C-c w x c" "Count notes"
+    "C-c w x r" "Random note"
+    
+    "C-c w s d" "Dictionary"
+    "C-c w s t" "Titlecase")
+  
+  ;; God-Mode support
+  (with-eval-after-load 'god-mode
+    (which-key-enable-god-mode-support)
+    
+    ;; God-Mode versions of the keybindings
+    (which-key-add-key-based-replacements
+      "c w" "Writing"
+      
+      "c w b" "Bibliography"
+      "c w d" "Denote"
+      "c w m" "Media"
+      "c w s" "Spelling/Style"
+      "c w t" "Toggle"
+      "c w x" "Explore")))
 ;; Improved help buffers
 
 (use-package helpful
@@ -364,19 +513,20 @@
 (use-package emms
   :config
   (require 'emms-setup)
-  (require 'emms-mpris)
+  ;;(require 'emms-mpris) ;; for multimedia keys on laptops
   (emms-all)
   (emms-default-players)
-  (emms-mpris-enable)
+  ;;(emms-mpris-enable) ;; for multimedia keys on laptops
   :custom
   (emms-browser-covers #'emms-browser-cache-thumbnail-async)
   :bind
   (("C-c w m b" . emms-browser)
    ("C-c w m e" . emms)
-   ("C-c w m p" . emms-play-playlist )
-   ("<XF86AudioPrev>" . emms-previous)
-   ("<XF86AudioNext>" . emms-next)
-   ("<XF86AudioPlay>" . emms-pause)))
+   ("C-c w m p" . emms-play-playlist)
+   ("C-c w m r" . emms-previous)
+   ("C-c w m f" . emms-next)
+   ("C-c w m P" . emms-pause)))
+
 
 (use-package openwith
   :config
