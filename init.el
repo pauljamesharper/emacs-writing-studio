@@ -65,7 +65,8 @@
 (use-package package
   :config
   (add-to-list 'package-archives
-               '("melpa" . "https://melpa.org/packages/"))
+               '("melpa" . "https://melpa.org/packages/")
+               '("gnu" . "https://elpa.gnu.org/packages/"))
   (package-initialize))
 
 ;; Package Management
@@ -131,12 +132,11 @@
   (add-hook 'god-mode-enabled-hook #'my-god-mode-update-cursor-color)
   (add-hook 'god-mode-disabled-hook #'my-god-mode-update-cursor-color)
 
-;; Exclude EMMS and Dired modes from God Mode
-  (add-to-list 'god-exempt-major-modes 'dired-mode)
-  (add-to-list 'god-exempt-major-modes 'emms-playlist-mode)
-  (add-to-list 'god-exempt-major-modes 'emms-browser-mode)
-  (add-to-list 'god-exempt-major-modes 'emms-metaplaylist-mode)
-  (add-to-list 'god-exempt-major-modes 'emms-stream-mode)
+;; Exclude Bongo and Dired modes from God Mode
+(add-to-list 'god-exempt-major-modes 'dired-mode)
+(add-to-list 'god-exempt-major-modes 'bongo-mode)
+(add-to-list 'god-exempt-major-modes 'bongo-library-mode)
+(add-to-list 'god-exempt-major-modes 'bongo-playlist-mode)
 
   ;; Integration with which-key
   (defun my-god-mode-which-key-update ()
@@ -168,6 +168,30 @@
   ;; Enable god-mode for all buffers
   (god-mode-all))
 ;;; End God Mode
+
+;; Zooming In/Out
+;; You can use the bindings CTRL plus =/- for zooming in/out.  You can also use CTRL plus the mouse wheel for zooming in/out.
+(global-set-key (kbd "C-=") 'text-scale-increase)
+(global-set-key (kbd "C--") 'text-scale-decrease)
+(global-set-key (kbd "<C-wheel-up>") 'text-scale-increase)
+(global-set-key (kbd "<C-wheel-down>") 'text-scale-decrease)
+;; Add this to your God Mode configuration section in init.el
+
+;; Make zoom commands work in God Mode
+(defun my-god-mode-zoom-in ()
+  "Zoom in when in god-mode."
+  (interactive)
+  (text-scale-increase 1))
+
+(defun my-god-mode-zoom-out ()
+  "Zoom out when in god-mode."
+  (interactive)
+  (text-scale-decrease 1))
+
+;; Bind zoom commands in god-mode-map
+(with-eval-after-load 'god-mode
+  (define-key god-local-mode-map (kbd "=") 'my-god-mode-zoom-in)
+  (define-key god-local-mode-map (kbd "-") 'my-god-mode-zoom-out))
 
 ;;; LOOK AND FEEL
 
@@ -214,6 +238,15 @@
 ;;   :custom
 ;;   (line-spacing 3)
 ;;   (spacious-padding-mode 1))
+
+;; Nerd Icons
+;; This is an icon set that can be used with dashboard, dired, ibuffer and other Emacs programs.
+(use-package nerd-icons
+  :ensure t)
+
+(use-package nerd-icons-dired
+  :ensure t
+  :hook (dired-mode . nerd-icons-dired-mode))
 
 ;; Modus and EF Themes
 (use-package modus-themes
@@ -508,24 +541,338 @@
   :bind
   (("C-c w w" . org-web-tools-insert-link-for-url)))
 
-;; Emacs Multimedia System
-
-(use-package emms
+;; Bongo Configuration using use-package with C-c w m prefix
+;; Replace your existing Bongo configuration with this
+(use-package bongo
+  :ensure t
   :config
-  (require 'emms-setup)
-  ;;(require 'emms-mpris) ;; for multimedia keys on laptops
-  (emms-all)
-  (emms-default-players)
-  ;;(emms-mpris-enable) ;; for multimedia keys on laptops
-  :custom
-  (emms-browser-covers #'emms-browser-cache-thumbnail-async)
-  :bind
-  (("C-c w m b" . emms-browser)
-   ("C-c w m e" . emms)
-   ("C-c w m p" . emms-play-playlist)
-   ("C-c w m r" . emms-previous)
-   ("C-c w m f" . emms-next)
-   ("C-c w m P" . emms-pause)))
+  (setq bongo-default-directory "~/Music")
+  (setq bongo-prefer-library-buffers nil)
+  (setq bongo-insert-whole-directory-trees t)
+  (setq bongo-logo nil)
+  (setq bongo-display-track-icons nil)
+  (setq bongo-display-track-lengths nil)
+  (setq bongo-display-header-icons nil)
+  (setq bongo-display-playback-mode-indicator t)
+  (setq bongo-display-inline-playback-progress t)
+  (setq bongo-join-inserted-tracks nil)
+  (setq bongo-field-separator (propertize " · " 'face 'shadow))
+  (setq bongo-mark-played-tracks t)
+  (setq bongo-header-line-mode nil)
+  (setq bongo-mode-line-indicator-mode nil)
+  (setq bongo-enabled-backends '(vlc mpv))
+  (setq bongo-vlc-program-name "cvlc")
+
+;; MPV-specific settings for Bongo
+(setq bongo-enabled-backends '(mpv))  ;; Use only MPV
+(setq bongo-default-backend 'mpv)    ;; Default to MPV
+(setq bongo-mpv-program-name "/usr/bin/mpv")  ;; Explicit path to MPV
+
+;; If that doesn't work, try just VLC
+;; (setq bongo-enabled-backends '(vlc))
+
+;;; Bongo playlist buffer
+  (defvar prot/bongo-playlist-delimiter
+    "\n******************************\n\n"
+    "Delimiter for inserted items in `bongo' playlist buffers.")
+
+  (defun prot/bongo-playlist-section ()
+    (bongo-insert-comment-text
+     prot/bongo-playlist-delimiter))
+
+  (defun prot/bongo-paylist-section-next ()
+    "Move to next `bongo' playlist custom section delimiter."
+    (interactive)
+    (let ((section "^\\*+$"))
+      (if (save-excursion (re-search-forward section nil t))
+          (progn
+            (goto-char (point-at-eol))
+            (re-search-forward section nil t))
+        (goto-char (point-max)))))
+
+  (defun prot/bongo-paylist-section-previous ()
+    "Move to previous `bongo' playlist custom section delimiter."
+    (interactive)
+    (let ((section "^\\*+$"))
+      (if (save-excursion (re-search-backward section nil t))
+          (progn
+            (goto-char (point-at-bol))
+            (re-search-backward section nil t))
+        (goto-char (point-min)))))
+
+  (defun prot/bongo-playlist-mark-section ()
+    "Mark `bongo' playlist section, delimited by custom markers.
+The marker is `prot/bongo-playlist-delimiter'."
+    (interactive)
+    (let ((section "^\\*+$"))
+      (search-forward-regexp section nil t)
+      (push-mark nil t)
+      (forward-line -1)
+      ;; REVIEW any predicate to replace this `save-excursion'?
+      (if (save-excursion (re-search-backward section nil t))
+          (progn
+            (search-backward-regexp section nil t)
+            (forward-line 1))
+        (goto-char (point-min)))
+      (activate-mark)))
+
+  (defun prot/bongo-playlist-kill-section ()
+    "Kill `bongo' playlist-section at point.
+This operates on a custom delimited section of the buffer.  See
+`prot/bongo-playlist-kill-section'."
+    (interactive)
+    (prot/bongo-playlist-mark-section)
+    (bongo-kill))
+
+  (defun prot/bongo-playlist-play-random ()
+    "Play random `bongo' track and determine further conditions."
+    (interactive)
+    (unless (bongo-playlist-buffer)
+      (bongo-playlist-buffer))
+    (when (or (bongo-playlist-buffer-p)
+              (bongo-library-buffer-p))
+      (unless (bongo-playing-p)
+        (with-current-buffer (bongo-playlist-buffer)
+          (bongo-play-random)
+          (bongo-random-playback-mode 1)
+          (bongo-recenter)))))
+
+  (defun prot/bongo-playlist-random-toggle ()
+    "Toggle `bongo-random-playback-mode' in playlist buffers."
+    (interactive)
+    (if (eq bongo-next-action 'bongo-play-random-or-stop)
+        (bongo-progressive-playback-mode)
+      (bongo-random-playback-mode)))
+
+  (defun prot/bongo-playlist-reset ()
+    "Stop playback and reset `bongo' playlist marks.
+To reset the playlist is to undo the marks produced by non-nil
+`bongo-mark-played-tracks'."
+    (interactive)
+    (when (bongo-playlist-buffer-p)
+      (bongo-stop)
+      (bongo-reset-playlist)))
+
+  (defun prot/bongo-playlist-terminate ()
+    "Stop playback and clear the entire `bongo' playlist buffer.
+Contrary to the standard `bongo-erase-buffer', this also removes
+the currently-playing track."
+    (interactive)
+    (when (bongo-playlist-buffer-p)
+      (bongo-stop)
+      (bongo-erase-buffer)))
+
+  (defun prot/bongo-playlist-insert-playlist-file ()
+    "Insert contents of playlist file to a `bongo' playlist.
+Upon insertion, playback starts immediately, in accordance with
+`prot/bongo-play-random'.
+
+The available options at the completion prompt point to files
+that hold filesystem paths of media items.  Think of them as
+'directories of directories' that mix manually selected media
+items.
+
+Also see `prot/bongo-dired-make-playlist-file'."
+    (interactive)
+    (let* ((path "~/Music/playlists/")
+           (dotless directory-files-no-dot-files-regexp)
+           (playlists (mapcar
+                       'abbreviate-file-name
+                       (directory-files path nil dotless)))
+           (choice (completing-read "Insert playlist: " playlists nil t)))
+      (if (bongo-playlist-buffer-p)
+          (progn
+            (save-excursion
+              (goto-char (point-max))
+              (bongo-insert-playlist-contents
+               (format "%s%s" path choice))
+              (prot/bongo-playlist-section))
+            (prot/bongo-playlist-play-random))
+        (user-error "Not in a `bongo' playlist buffer"))))
+
+;;; Bongo + Dired (bongo library buffer)
+  (defmacro prot/bongo-dired-library (name doc val)
+    "Create `bongo' library function NAME with DOC and VAL."
+    `(defun ,name ()
+       ,doc
+       (when (string-match-p "\\`~/Music/" default-directory)
+         (bongo-dired-library-mode ,val))))
+
+  (prot/bongo-dired-library
+   prot/bongo-dired-library-enable
+   "Set `bongo-dired-library-mode' when accessing ~/Music.
+
+Add this to `dired-mode-hook'.  Upon activation, the directory
+and all its sub-directories become a valid library buffer for
+Bongo, from where we can, among others, add tracks to playlists.
+The added benefit is that Dired will continue to behave as
+normal, making this a superior alternative to a purpose-specific
+library buffer.
+
+Note, though, that this will interfere with `wdired-mode'.  See
+`prot/bongo-dired-library-disable'."
+   1)
+
+  ;; NOTE `prot/bongo-dired-library-enable' does not get reactivated
+  ;; upon exiting `wdired-mode'.
+  (prot/bongo-dired-library
+   prot/bongo-dired-library-disable
+   "Unset `bongo-dired-library-mode' when accessing ~/Music.
+This should be added `wdired-mode-hook'.  For more, refer to
+`prot/bongo-dired-library-enable'."
+   -1)
+
+  (defun prot/bongo-dired-insert-files ()
+    "Add files in a `dired' buffer to the `bongo' playlist."
+    (let ((media (dired-get-marked-files)))
+      (with-current-buffer (bongo-playlist-buffer)
+        (goto-char (point-max))
+        (mapc 'bongo-insert-file media)
+        (prot/bongo-playlist-section))
+      (with-current-buffer (bongo-library-buffer)
+        (dired-next-line 1))))
+
+  (defun prot/bongo-dired-insert ()
+    "Add `dired' item at point or marks to `bongo' playlist.
+
+The playlist is created, if necessary, while some other tweaks
+are introduced.  See `prot/bongo-dired-insert-files' as well as
+`prot/bongo-playlist-play-random'.
+
+Meant to work while inside a `dired' buffer that doubles as a
+library buffer (see `prot/bongo-dired-library')."
+    (interactive)
+    (when (bongo-library-buffer-p)
+      (unless (bongo-playlist-buffer-p)
+        (bongo-playlist-buffer))
+      (prot/bongo-dired-insert-files)
+      (prot/bongo-playlist-play-random)))
+
+  (defun prot/bongo-dired-make-playlist-file ()
+    "Add `dired' marked items to playlist file using completion.
+
+These files are meant to reference filesystem paths.  They ease
+the task of playing media from closely related directory trees,
+without having to interfere with the user's directory
+structure (e.g. a playlist file 'rock' can include the paths of
+~/Music/Scorpions and ~/Music/Queen).
+
+This works by appending the absolute filesystem path of each item
+to the selected playlist file.  If no marks are available, the
+item at point will be used instead.
+
+Selecting a non-existent file at the prompt will create a new
+entry whose name matches user input.  Depending on the completion
+framework, such as with `icomplete-mode', this may require a
+forced exit (e.g. \\[exit-minibuffer] to parse the input without
+further questions).
+
+Also see `prot/bongo-playlist-insert-playlist-file'."
+    (interactive)
+    (let* ((dotless directory-files-no-dot-files-regexp)
+           (pldir "~/Music/playlists")
+           (playlists (mapcar
+                       'abbreviate-file-name
+                       (directory-files pldir nil dotless)))
+           (plname (completing-read "Select playlist: " playlists nil nil))
+           (plfile (format "%s/%s" pldir plname))
+           (media-paths
+            (if (derived-mode-p 'dired-mode)
+                ;; The issue is that we need to have a newline at the
+                ;; end of the file, so that when we append again we
+                ;; start on an empty line.
+                (concat
+                 (mapconcat #'identity
+                            (dired-get-marked-files)
+                            "\n")
+                 "\n")
+              (user-error "Not in a `dired' buffer"))))
+      ;; The following `when' just checks for an empty string.
+      (when (string-empty-p plname)
+        (user-error "No playlist file has been specified"))
+      (unless (file-directory-p pldir)
+        (make-directory pldir))
+      (unless (and (file-exists-p plfile)
+                   (file-readable-p plfile)
+                   (not (file-directory-p plfile)))
+        (make-empty-file plfile))
+      (append-to-file media-paths nil plfile)
+      (with-current-buffer (find-file-noselect plfile)
+        (delete-duplicate-lines (point-min) (point-max))
+        (sort-lines nil (point-min) (point-max))
+        (save-buffer)
+        (kill-buffer))))
+
+  :hook ((dired-mode-hook . prot/bongo-dired-library-enable)
+         (wdired-mode-hook . prot/bongo-dired-library-disable))
+  
+  :bind (
+         ;; Global bindings with C-c w m prefix
+         ("C-c w m b" . bongo)                   ; Open Bongo buffer (main)
+         ("C-c w m l" . bongo-library)           ; Open library
+         ("C-c w m p" . bongo-pause/resume)      ; Play/pause toggle
+         ("C-c w m n" . bongo-next)              ; Next track
+         ("C-c w m v" . bongo-previous)          ; Previous track (like "previous")
+         ("C-c w m s" . bongo-stop)              ; Stop playback
+         ("C-c w m f" . bongo-seek-forward-10)   ; Forward 10 seconds
+         ("C-c w m b" . bongo-seek-backward-10)  ; Backward 10 seconds
+         ("C-c w m o" . bongo-show)              ; Show current track (open/output)
+         ("C-c w m r" . prot/bongo-playlist-random-toggle) ; Random toggle
+         
+         :map bongo-playlist-mode-map
+         ("n" . bongo-next-object)
+         ("p" . bongo-previous-object)
+         ("M-n" . prot/bongo-paylist-section-next)
+         ("M-p" . prot/bongo-paylist-section-previous)
+         ("M-h" . prot/bongo-playlist-mark-section)
+         ("M-d" . prot/bongo-playlist-kill-section)
+         ("g" . prot/bongo-playlist-reset)
+         ("D" . prot/bongo-playlist-terminate)
+         ("r" . prot/bongo-playlist-random-toggle)
+         ("R" . bongo-rename-line)
+         ("j" . bongo-dired-line)       ; Jump to dir of file at point
+         ("J" . dired-jump)             ; Jump to library buffer
+         ("i" . prot/bongo-playlist-insert-playlist-file)
+         ("I" . bongo-insert-special)
+         
+         :map bongo-dired-library-mode-map
+         ("<C-return>" . prot/bongo-dired-insert)
+         ("C-c w m a" . prot/bongo-dired-insert)      ; Add to playlist
+         ("C-c w m +" . prot/bongo-dired-make-playlist-file)))
+
+;; Register with which-key
+(with-eval-after-load 'which-key
+  (which-key-add-key-based-replacements
+    "C-c w m" "Media"
+    "C-c w m b" "Bongo buffer"
+    "C-c w m l" "Library"
+    "C-c w m p" "Play/Pause"
+    "C-c w m n" "Next track"
+    "C-c w m v" "Previous track"
+    "C-c w m s" "Stop playback"
+    "C-c w m f" "Forward 10s"
+    "C-c w m b" "Backward 10s"
+    "C-c w m o" "Show track"
+    "C-c w m r" "Random toggle"
+    "C-c w m a" "Add to playlist"
+    "C-c w m +" "Make playlist file"))
+
+;; God Mode support
+(with-eval-after-load 'god-mode
+  (which-key-add-key-based-replacements
+    "c w m" "Media"
+    "c w m b" "Bongo buffer"
+    "c w m l" "Library"
+    "c w m p" "Play/Pause"
+    "c w m n" "Next track"
+    "c w m v" "Previous track"
+    "c w m s" "Stop playback"
+    "c w m f" "Forward 10s"
+    "c w m b" "Backward 10s"
+    "c w m o" "Show track"
+    "c w m r" "Random toggle"
+    "c w m a" "Add to playlist"
+    "c w m +" "Make playlist file"))
 
 
 (use-package openwith
@@ -902,3 +1249,58 @@
 (org-babel-do-load-languages
  'org-babel-load-languages
  '((dot . t))) ; this line activates GraophViz dot
+
+;; Sudo Edit
+;;sudo-edit gives us the ability to open files with sudo privileges or switch over to editing with sudo privileges if we initially opened the file without such privileges.
+;; Install and configure sudo-edit package
+(use-package sudo-edit
+  :ensure t
+  :bind
+  (("C-c f u" . sudo-edit-find-file)
+   ("C-c f U" . sudo-edit)))
+
+;; Add which-key support for these bindings
+(with-eval-after-load 'which-key
+  (which-key-add-key-based-replacements
+    "C-c f u" "Sudo find file"
+    "C-c f U" "Sudo edit file"))
+
+;; Add god-mode support if needed
+(with-eval-after-load 'god-mode
+  (which-key-add-key-based-replacements
+    "c f u" "Sudo find file"
+    "c f U" "Sudo edit file"))
+
+;; Vterm
+
+(use-package vterm
+  :ensure t
+  :config
+(setq shell-file-name "/bin/bash"
+      vterm-max-scrollback 5000))
+
+
+;; Vterm-Toggle
+
+;; vterm-toggle toggles between the vterm buffer and whatever buffer you are editing.
+(use-package vterm-toggle
+  :after vterm
+  :config
+  (setq vterm-toggle-fullscreen-p nil)
+  (setq vterm-toggle-scope 'project)
+  (add-to-list 'display-buffer-alist
+               '((lambda (buffer-or-name _)
+                     (let ((buffer (get-buffer buffer-or-name)))
+                       (with-current-buffer buffer
+                         (or (equal major-mode 'vterm-mode)
+                             (string-prefix-p vterm-buffer-name (buffer-name buffer))))))
+                  (display-buffer-reuse-window display-buffer-at-bottom)
+                  ;;(display-buffer-reuse-window display-buffer-in-direction)
+                  ;;display-buffer-in-direction/direction/dedicated is added in emacs27
+                  ;;(direction . bottom)
+                  ;;(dedicated . t) ;dedicated is supported in emacs27
+                  (reusable-frames . visible)
+                  (window-height . 0.3)))
+  :bind
+  ("C-c w t v" . vterm-toggle)))
+
