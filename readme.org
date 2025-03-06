@@ -1,13 +1,13 @@
 #+title: Emacs Writing Studio
 #+author: Peter Prevos
 
-/Emacs Writing Studio/ by Peter Prevos is an Emacs configuration and comprehensive guide for writers seeking to streamline their workflow. The book covers everything from organising ideas and writing distraction-free to publishing in multiple formats. It’s perfect for both beginners and experienced Emacs users, offering practical tips and a tailored configuration to enhance your writing process.
+This is my fork of /Emacs Writing Studio/ by Peter Prevos is an Emacs configuration and comprehensive guide for writers seeking to streamline their workflow. The book covers everything from organising ideas and writing distraction-free to publishing in multiple formats. It’s perfect for both beginners and experienced Emacs users, offering practical tips and a tailored configuration to enhance your writing process.
 
 #+attr_html: :alt Emacs Writing Studio logo :title Emacs Writing Studio logo :width 400
 #+attr_org: :width 200
 [[file:emacs-writing-studio.png]]
 
-If you like to support my work, then please purchase the EWS book from your [[https://books2read.com/b/4NpgQ9][favourite e-book retailer]] or a [[https://payhip.com/b/alhIJ][DRM-free download from PayHip]]. The Org source code of the complete book is available in the =documents= folder, so you can also 'roll your own'.
+If you like to support Peter's work, then please purchase the EWS book from your [[https://books2read.com/b/4NpgQ9][favourite e-book retailer]] or a [[https://payhip.com/b/alhIJ][DRM-free download from PayHip]]. The Org source code of the complete book is available in the =documents= folder, so you can also 'roll your own'.
  
 Feel free to raise an issue if you have any suggestions on how to enhance the configuration or like to see additional packages useful to authors. Alternatively, join the GitHub discussion forum.
 
